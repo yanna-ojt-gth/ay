@@ -1,0 +1,85 @@
+Create database if not exists
+CREATE DATABASE IF NOT EXISTS inventory_system CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE inventory_system;
+
+-- Users table for authentication
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    id_number VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Employees table
+CREATE TABLE IF NOT EXISTS employees (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    id_number VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    deleted_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Tools/Equipment table
+CREATE TABLE IF NOT EXISTS tools (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    no VARCHAR(50),
+    registration_id_number VARCHAR(100),
+    area_process VARCHAR(255),
+    equipment_name VARCHAR(255) NOT NULL,
+    manufacturer VARCHAR(255),
+    model VARCHAR(255),
+    serial_number VARCHAR(255),
+    type_of_calibration VARCHAR(255),
+    calibration_range VARCHAR(255),
+    date_of_registration DATE,
+    resolution VARCHAR(255),
+    accuracy VARCHAR(255),
+    remarks TEXT,
+    calibrate_due DATE,
+    tool_number VARCHAR(50) UNIQUE,
+    status ENUM('good', 'damage') DEFAULT 'good',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL
+);
+
+-- Borrow/Return logs table
+CREATE TABLE IF NOT EXISTS logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    action ENUM('borrow', 'return') NOT NULL,
+    employee_id INT NOT NULL,
+    employee_id_number VARCHAR(50) NOT NULL,
+    tool_id INT NOT NULL,
+    tool_name VARCHAR(255) NOT NULL,
+    tool_number VARCHAR(50) NOT NULL,
+    log_timestamp DATETIME NOT NULL,  -- renamed from 'timestamp'
+    tool_condition ENUM('good', 'for_calibration', 'calibration_done', 'damaged') NOT NULL, -- renamed from 'condition'
+    verified_by VARCHAR(255),
+    borrow_remarks TEXT,
+    return_remarks TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id),
+    FOREIGN KEY (tool_id) REFERENCES tools(id)
+);
+
+-- Sessions table for authentication
+CREATE TABLE IF NOT EXISTS sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    session_token VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,  -- fixed: use DATETIME instead of TIMESTAMP
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_tools_status ON tools(status);
+CREATE INDEX idx_tools_calibrate_due ON tools(calibrate_due);
+CREATE INDEX idx_tools_tool_number ON tools(tool_number);
+CREATE INDEX idx_logs_employee_id ON logs(employee_id);
+CREATE INDEX idx_logs_tool_id ON logs(tool_id);
+CREATE INDEX idx_logs_timestamp ON logs(log_timestamp);
