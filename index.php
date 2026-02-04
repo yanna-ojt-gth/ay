@@ -1,0 +1,470 @@
+<?php
+session_start();
+require_once 'config.php';
+
+// Check if user is logged in
+$loggedIn = isset($_SESSION['user_id']);
+$currentUser = null;
+
+if ($loggedIn) {
+    try {
+        $conn = getDBConnection();
+        $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $currentUser = $stmt->fetch();
+    } catch (Exception $e) {
+        $loggedIn = false;
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory System - Tool Management</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com/">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="inventory.css">
+</head>
+<body>
+  <!-- Auth Page -->
+  <div id="auth-page" class="auth-container" style="<?php echo $loggedIn ? 'display:none;' : 'display:flex;'; ?>">
+    <div class="auth-card">
+      <div class="auth-header">
+        <h1 class="auth-title">INVENTORY SYSTEM</h1>
+        <p class="auth-subtitle">Sign in to continue</p>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="signup">Sign up</button>
+      </div>
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label class="label">Name</label>
+          <input type="text" class="input" id="login-name" placeholder="Your name" required>
+        </div>
+        <div class="form-group">
+          <label class="label">ID Number</label>
+          <input type="text" class="input" id="login-id" placeholder="e.g. 2024001" required>
+        </div>
+        <div class="form-group">
+          <label class="label">Password</label>
+          <input type="password" class="input" id="login-pass" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Login</button>
+        <p class="auth-note">Secure database-backed authentication.</p>
+      </form>
+      <!-- Signup Form -->
+      <form id="signup-form" class="auth-form" style="display:none;">
+        <div class="form-group">
+          <label class="label">Name</label>
+          <input type="text" class="input" id="signup-name" placeholder="Your name" required>
+        </div>
+        <div class="form-group">
+          <label class="label">ID Number</label>
+          <input type="text" class="input" id="signup-id" placeholder="e.g. 2024001" required>
+        </div>
+        <div class="form-group">
+          <label class="label">Password</label>
+          <input type="password" class="input" id="signup-pass" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Create account</button>
+        <p class="auth-note">Your ID Number becomes your barcode.</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- App Page -->
+  <div id="app-page" class="app-container" style="<?php echo $loggedIn ? 'display:flex;' : 'display:none;'; ?>">
+    <!-- Sidebar -->
+    <aside class="sidebar no-print">
+      <div class="brand">
+        <div class="brand-dot"></div>
+        <div>
+          <div class="brand-title">INVENTORY SYSTEM</div>
+          <div class="brand-sub">Tool Management</div>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-view="dashboard">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-btn" data-view="borrowers">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+          Borrower List
+        </button>
+        <button class="nav-btn" data-view="employees">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Employee List
+        </button>
+        <button class="nav-btn" data-view="reports">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Reports
+        </button>
+      </nav>
+      <div class="user-badge">
+        <div class="user-avatar" id="user-initial"><?php echo strtoupper(substr($currentUser['name'] ?? 'U', 0, 1)); ?></div>
+        <div class="flex-1">
+          <div class="user-name" id="user-name-display"><?php echo htmlspecialchars($currentUser['name'] ?? 'User'); ?></div>
+          <button class="logout-btn" id="logout-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Logout
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Dashboard View -->
+      <div id="view-dashboard" class="view active animate-fade-in">
+        <header class="flex items-end justify-between gap-4 flex-wrap mb-4">
+          <h1 class="font-extrabold" style="font-size:1.5rem;">Dashboard</h1>
+          <div class="flex gap-3" style="max-width:600px;flex:1;">
+            <div class="input-group flex-1">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="input" id="global-search" placeholder="Search tool name, borrower, or date...">
+            </div>
+            <button class="btn btn-outline" onclick="document.getElementById('global-search').value='';renderDashboard();">Clear</button>
+          </div>
+        </header>
+
+        <!-- Stats -->
+        <div class="stats-grid mb-4">
+          <div class="stat-card" onclick="openToolList('all')">
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-label">Total Tools</div>
+          </div>
+          <div class="stat-card danger" onclick="openToolList('damage')">
+            <div class="stat-value" id="stat-damage">0</div>
+            <div class="stat-label">Damage</div>
+          </div>
+          <div class="stat-card warning" onclick="openToolList('calibrate')">
+            <div class="stat-value" id="stat-calibrate">0</div>
+            <div class="stat-label">Calibrate Due</div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-primary flex-1" onclick="openModal('add-tool-modal')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Tool
+            </button>
+            <button class="btn btn-outline" onclick="openModal('csv-upload-modal')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid-3-1">
+          <!-- Left: Scan + Logs -->
+          <div class="space-y-5">
+            <!-- Scan Form -->
+            <section class="card">
+              <header class="card-header">
+                <h2 class="card-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  SCAN (Tool + Employee)
+                </h2>
+                <p class="card-subtitle">Barcode scanners usually type like a keyboard then press Enter.</p>
+              </header>
+              <div class="card-body">
+                <div id="scan-form-container"></div>
+              </div>
+            </section>
+
+            <!-- Recent Logs -->
+            <section class="card">
+              <header class="card-header flex justify-between items-center flex-wrap gap-2">
+                <h2 class="card-title">Recent Logs</h2>
+                <div class="flex gap-2">
+                  <button class="btn btn-outline btn-sm" onclick="renderDashboard()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    Refresh
+                  </button>
+                  <button class="btn btn-outline btn-sm" onclick="downloadLogsCSV()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    CSV
+                  </button>
+                </div>
+              </header>
+              <div class="card-body">
+                <div id="recent-logs-table"></div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Right: Calibrate Due -->
+          <div>
+            <section class="card">
+              <header class="card-header">
+                <h2 class="card-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  Top 5 Calibrate Due
+                </h2>
+                <p class="card-subtitle">Click edit to update after calibration</p>
+              </header>
+              <div class="card-body">
+                <div id="calibrate-due-list"></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- Borrowers View -->
+      <div id="view-borrowers" class="view animate-fade-in">
+        <header class="flex items-end justify-between gap-4 flex-wrap mb-4">
+          <h1 class="font-extrabold" style="font-size:1.5rem;">Borrower List</h1>
+          <div class="input-group" style="max-width:400px;flex:1;">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="input" id="borrower-search" placeholder="Search borrower, tool, or date..." oninput="renderBorrowers()">
+          </div>
+        </header>
+        <section class="card">
+          <div class="card-body">
+            <div id="borrowers-table"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Employees View -->
+      <div id="view-employees" class="view animate-fade-in">
+        <header class="flex items-end justify-between gap-4 flex-wrap mb-4">
+          <h1 class="font-extrabold" style="font-size:1.5rem;">Employee List</h1>
+          <div class="flex gap-3">
+            <div class="input-group" style="max-width:300px;">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="input" id="employee-search" placeholder="Search employee name or ID..." oninput="renderEmployees()">
+            </div>
+            <button class="btn btn-primary" onclick="openModal('add-employee-modal')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Employee
+            </button>
+          </div>
+        </header>
+        <section class="card">
+          <div class="card-body">
+            <p class="text-xs text-muted mb-4">ID number is the barcode. Deleting an employee preserves their borrow history.</p>
+            <div id="employees-table"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Reports View -->
+      <div id="view-reports" class="view animate-fade-in">
+        <header class="flex items-end justify-between gap-4 flex-wrap mb-4">
+          <h1 class="font-extrabold" style="font-size:1.5rem;">Reports</h1>
+          <div class="flex gap-3">
+            <div class="input-group" style="max-width:400px;flex:1;">
+              <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="input" id="report-search" placeholder="Filter by tool, borrower, or date..." oninput="renderReports()">
+            </div>
+            <button class="btn btn-primary" onclick="downloadReportCSV()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download CSV
+            </button>
+          </div>
+        </header>
+        <section class="card">
+          <header class="card-header">
+            <h2 class="card-title">All Logs (Filtered)</h2>
+          </header>
+          <div class="card-body">
+            <div id="reports-table"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modals -->
+  <!-- Add Tool Modal -->
+  <div id="add-tool-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Add New Tool</h3>
+        <button class="modal-close" onclick="closeModal('add-tool-modal')">&times;</button>
+      </div>
+      <form id="add-tool-form" class="modal-body">
+        <div class="form-group">
+          <label class="label">Equipment Name *</label>
+          <input type="text" class="input" id="tool-equipment-name" placeholder="e.g. Digital Caliper" required>
+        </div>
+        <div class="form-group">
+          <label class="label">Registration ID Number</label>
+          <input type="text" class="input" id="tool-registration-id" placeholder="e.g. REG-001">
+        </div>
+        <div class="form-group">
+          <label class="label">Area/Process</label>
+          <input type="text" class="input" id="tool-area" placeholder="e.g. Quality Control">
+        </div>
+        <div class="form-group">
+          <label class="label">Manufacturer</label>
+          <input type="text" class="input" id="tool-manufacturer" placeholder="e.g. Mitutoyo">
+        </div>
+        <div class="form-group">
+          <label class="label">Model</label>
+          <input type="text" class="input" id="tool-model" placeholder="e.g. 500-196">
+        </div>
+        <div class="form-group">
+          <label class="label">Serial Number</label>
+          <input type="text" class="input" id="tool-serial" placeholder="e.g. SN123456">
+        </div>
+        <div class="form-group">
+          <label class="label">Type of Calibration</label>
+          <input type="text" class="input" id="tool-calibration-type" placeholder="e.g. Dimensional">
+        </div>
+        <div class="form-group">
+          <label class="label">Calibration Range</label>
+          <input type="text" class="input" id="tool-calibration-range" placeholder="e.g. 0-150mm">
+        </div>
+        <div class="form-group">
+          <label class="label">Date of Registration</label>
+          <input type="date" class="input" id="tool-registration-date">
+        </div>
+        <div class="form-group">
+          <label class="label">Resolution</label>
+          <input type="text" class="input" id="tool-resolution" placeholder="e.g. 0.01mm">
+        </div>
+        <div class="form-group">
+          <label class="label">Accuracy</label>
+          <input type="text" class="input" id="tool-accuracy" placeholder="e.g. ±0.02mm">
+        </div>
+        <div class="form-group">
+          <label class="label">Remarks</label>
+          <input type="text" class="input" id="tool-remarks" placeholder="Optional remarks">
+        </div>
+        <div class="form-group">
+          <label class="label">Calibrate Due</label>
+          <input type="date" class="input" id="tool-calibrate">
+        </div>
+        <div class="form-group">
+          <label class="label">Tool Number (Optional - auto-generated if empty)</label>
+          <input type="text" class="input" id="tool-number" placeholder="e.g. T-001">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('add-tool-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Tool</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Employee Modal -->
+  <div id="add-employee-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Add New Employee</h3>
+        <button class="modal-close" onclick="closeModal('add-employee-modal')">&times;</button>
+      </div>
+      <form id="add-employee-form" class="modal-body">
+        <div class="form-group">
+          <label class="label">Name *</label>
+          <input type="text" class="input" id="emp-name" placeholder="Employee name" required>
+        </div>
+        <div class="form-group">
+          <label class="label">ID Number * (becomes barcode)</label>
+          <input type="text" class="input" id="emp-id" placeholder="e.g. 2024001" required>
+        </div>
+        <div class="form-group">
+          <label class="label">Password *</label>
+          <input type="password" class="input" id="emp-pass" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('add-employee-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Employee</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CSV Upload Modal -->
+  <div id="csv-upload-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Import Tools from CSV</h3>
+        <button class="modal-close" onclick="closeModal('csv-upload-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-sm text-muted mb-4">
+          CSV must have these columns in order:
+          <br>
+          <strong>No., Registration ID Number, Area/Process, Equipment Name, Manufacturer, Model, Serial Number, Type of Calibration, Calibration Range, Date of Registration, Resolution, Accuracy, Remarks, Calibrate Due</strong>
+        </p>
+        <input type="file" id="csv-file" accept=".csv" class="input">
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('csv-upload-modal')">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="importCSV()">Import</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tool List Modal -->
+  <div id="tool-list-modal" class="modal-overlay" style="display:none;">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title" id="tool-list-title">Tools</h3>
+        <button class="modal-close" onclick="closeModal('tool-list-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-4">
+          <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="input" id="tool-list-search" placeholder="Search tool name, number, or date..." oninput="renderToolListModal()">
+        </div>
+        <div id="tool-list-actions" class="mb-4" style="display:none;">
+          <span class="text-sm text-muted" id="selected-count">0 selected</span>
+          <button class="btn btn-outline btn-sm" onclick="printSelectedBarcodes()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print Selected Barcodes
+          </button>
+        </div>
+        <div class="table-wrap" id="tool-list-table"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barcode Modal -->
+  <div id="barcode-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Barcode</h3>
+        <button class="modal-close" onclick="closeModal('barcode-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="barcode-container" class="barcode-container"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('barcode-modal')">Close</button>
+          <button type="button" class="btn btn-primary" onclick="printBarcode()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Modal -->
+  <div id="confirm-delete-modal" class="modal-overlay" style="display:none;">
+    <div class="modal" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirm Delete</h3>
+        <button class="modal-close" onclick="closeModal('confirm-delete-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-delete-text">Are you sure you want to delete this item?</p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal('confirm-delete-modal')">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="inventory.js"></script>
+</body>
+</html>
